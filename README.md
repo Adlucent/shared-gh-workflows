@@ -31,6 +31,13 @@ jobs:
 2. Enable GitHub Actions for your repository
 3. Allow Adlucent actions in your repository settings
 
+### Branch Behavior
+
+- **The workflow file only needs to exist on your main branch** - it will work for PRs from any branch
+- When Claude responds to a PR comment, it automatically checks out and works on the PR's branch, not the main branch
+- For issue comments (not on PRs), Claude operates on the main branch
+- This means you can safely add the workflow to main and Claude will handle comments on all PRs regardless of their source branch
+
 ### Allowed Tools
 
 The workflow is configured with a specific set of allowed tools for security:

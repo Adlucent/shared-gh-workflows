@@ -17,6 +17,24 @@ jobs:
       issues: write
       actions: read
     steps:
+      # For PR comments, get the correct branch information
+      - name: Get PR branch
+        if: github.event.issue.pull_request
+        uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Use PR branch if this is a PR comment, otherwise use default
+          ref: ${{ steps.comment-branch.outputs.head_ref || github.ref }}
+          # Fetch full history for better git operations
+          fetch-depth: 0
+      
+      # Run Claude Code action
       - uses: anthropics/claude-code-action@beta
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
