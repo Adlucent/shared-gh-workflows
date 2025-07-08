@@ -17,20 +17,26 @@ jobs:
       issues: write
       actions: read
     steps:
-      # For PR comments, get the correct branch information
-      - name: Get PR branch
+      # For PR comments, get the correct branch information using GitHub API
+      - name: Get PR branch info
         if: github.event.issue.pull_request
-        uses: xt0rted/pull-request-comment-branch@v2
-        id: comment-branch
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
+        id: pr-info
+        run: |
+          pr_number=$(echo "${{ github.event.issue.number }}")
+          pr_data=$(gh api repos/${{ github.repository }}/pulls/$pr_number)
+          head_ref=$(echo "$pr_data" | jq -r '.head.ref')
+          head_sha=$(echo "$pr_data" | jq -r '.head.sha')
+          echo "head_ref=$head_ref" >> $GITHUB_OUTPUT
+          echo "head_sha=$head_sha" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       # Checkout the repository
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           # Use PR branch if this is a PR comment, otherwise use default
-          ref: ${{ steps.comment-branch.outputs.head_ref || github.ref }}
+          ref: ${{ steps.pr-info.outputs.head_sha || github.sha }}
           # Fetch full history for better git operations
           fetch-depth: 0
       
