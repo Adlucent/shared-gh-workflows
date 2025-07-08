@@ -1,0 +1,46 @@
+name: Claude Code Handler
+on:
+  workflow_call:
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+    steps:
+      - uses: anthropics/claude-code-action@beta
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: |
+            # Core file operations
+            Edit
+            View
+            Create
+            GlobTool
+            GrepTool
+            
+            # Git essentials
+            Bash(git diff)
+            Bash(git status)
+            Bash(git add)
+            Bash(git commit -m)
+            
+            # Build/test (adjust for your stack)
+            Bash(npm install)
+            Bash(npm run build)
+            Bash(npm run test)
+            Bash(npm run lint)
+            
+            # Basic diagnostics
+            Bash(ls -la)
+            Bash(cat)
