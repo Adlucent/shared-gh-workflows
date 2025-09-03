@@ -45,11 +45,46 @@ jobs:
       - name: Check for requirements files
         id: check-files
         run: |
+          # Check for root requirements.txt
           if [ -f "requirements.txt" ]; then
             echo "has_requirements=true" >> $GITHUB_OUTPUT
+            echo "requirements_files=requirements.txt" >> $GITHUB_OUTPUT
+            echo "Found root requirements.txt"
+          # Check for requirements/ directory structure
+          elif [ -d "requirements" ]; then
+            req_files=""
+            if [ -f "requirements/base.txt" ]; then
+              req_files="requirements/base.txt"
+              echo "Found requirements/base.txt"
+            fi
+            if [ -f "requirements/production.txt" ]; then
+              if [ -n "$req_files" ]; then
+                req_files="$req_files requirements/production.txt"
+              else
+                req_files="requirements/production.txt"
+              fi
+              echo "Found requirements/production.txt"
+            fi
+            if [ -f "requirements/development.txt" ]; then
+              if [ -n "$req_files" ]; then
+                req_files="$req_files requirements/development.txt"
+              else
+                req_files="requirements/development.txt"
+              fi
+              echo "Found requirements/development.txt"
+            fi
+            if [ -n "$req_files" ]; then
+              echo "has_requirements=true" >> $GITHUB_OUTPUT
+              echo "requirements_files=$req_files" >> $GITHUB_OUTPUT
+            else
+              echo "has_requirements=false" >> $GITHUB_OUTPUT
+              echo "No requirements files found in requirements/ directory"
+            fi
           else
             echo "has_requirements=false" >> $GITHUB_OUTPUT
+            echo "No requirements files found"
           fi
+          
           if [ -f "Pipfile" ]; then
             echo "has_pipfile=true" >> $GITHUB_OUTPUT
           else
@@ -65,19 +100,37 @@ jobs:
         run: |
           pip install pip-audit
       
-      - name: Run pip-audit on requirements.txt
+      - name: Run pip-audit on requirements files
         if: steps.check-files.outputs.has_requirements == 'true'
         run: |
           echo "## 🔒 Python Security Scan Results" >> $GITHUB_STEP_SUMMARY
-          echo "### Checking requirements.txt for vulnerabilities..." >> $GITHUB_STEP_SUMMARY
-          pip-audit -r requirements.txt --desc || true
-          pip-audit -r requirements.txt --format json > pip-audit-report.json || true
+          echo "### Checking requirements files for vulnerabilities..." >> $GITHUB_STEP_SUMMARY
+          echo "Requirements files: ${{ steps.check-files.outputs.requirements_files }}"
+          echo "Requirements files found: ${{ steps.check-files.outputs.requirements_files }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Run pip-audit on all found requirements files
+          for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
+            echo "Scanning $req_file..."
+            pip-audit -r "$req_file" --desc || true
+          done
+          
+          # Generate combined JSON report
+          pip-audit -r ${{ steps.check-files.outputs.requirements_files }} --format json > pip-audit-report.json || true
       
       - name: Check for outdated Python packages
         if: steps.check-files.outputs.has_requirements == 'true'
         run: |
           pip install pip-outdated
           echo "### 📦 Outdated Python Packages" >> $GITHUB_STEP_SUMMARY
+          echo "Installing packages from requirements files..."
+          
+          # Install packages from all requirements files
+          for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
+            echo "Installing from $req_file..."
+            pip install -r "$req_file" || true
+          done
+          
+          echo "Checking for outdated packages..."
           pip list --outdated --format=columns || true
       
       - name: Run Bandit security linter
@@ -94,8 +147,16 @@ jobs:
         run: |
           pip install safety
           echo "### 🛡️ Safety Vulnerability Database Check" >> $GITHUB_STEP_SUMMARY
-          safety check -r requirements.txt --json --output safety-report.json || true
-          safety check -r requirements.txt || true
+          
+          # Run safety on all requirements files
+          for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
+            echo "Safety checking $req_file..."
+            safety check -r "$req_file" || true
+          done
+          
+          # Generate combined JSON report (try first requirements file for JSON output)
+          first_req_file=$(echo "${{ steps.check-files.outputs.requirements_files }}" | awk '{print $1}')
+          safety check -r "$first_req_file" --json --output safety-report.json || true
       
       - name: Upload Python security reports
         if: always()
@@ -216,16 +277,37 @@ jobs:
           echo "## 📜 License Check" >> $GITHUB_STEP_SUMMARY
           echo "### Checking for restrictive licenses..." >> $GITHUB_STEP_SUMMARY
           
-          # Check Python licenses if requirements.txt exists
-          if [ -f "requirements.txt" ]; then
+          # Check Python licenses if requirements files exist
+          if [ -f "requirements.txt" ] || [ -d "requirements" ]; then
             pip install pip-licenses
             echo "#### Python Packages Licenses:" >> $GITHUB_STEP_SUMMARY
+            
+            # Install packages from requirements files first
+            if [ -f "requirements.txt" ]; then
+              echo "Installing from requirements.txt..." >> $GITHUB_STEP_SUMMARY
+              pip install -r requirements.txt || true
+            elif [ -d "requirements" ]; then
+              echo "Installing from requirements directory..." >> $GITHUB_STEP_SUMMARY
+              for req_file in requirements/base.txt requirements/production.txt requirements/development.txt; do
+                if [ -f "$req_file" ]; then
+                  echo "Installing from $req_file..." >> $GITHUB_STEP_SUMMARY
+                  pip install -r "$req_file" || true
+                fi
+              done
+            fi
+            
+            echo "Generating license report..." >> $GITHUB_STEP_SUMMARY
             pip-licenses --format=markdown >> $GITHUB_STEP_SUMMARY || true
+          else
+            echo "No Python requirements files found." >> $GITHUB_STEP_SUMMARY
           fi
           
           # Check Node licenses if package.json exists  
           if [ -f "package.json" ]; then
+            echo "#### Node.js Packages Licenses:" >> $GITHUB_STEP_SUMMARY
             npx license-checker --summary >> $GITHUB_STEP_SUMMARY || true
+          else
+            echo "No package.json found." >> $GITHUB_STEP_SUMMARY
           fi
 
   security-summary:
