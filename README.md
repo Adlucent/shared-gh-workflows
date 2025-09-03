@@ -2,6 +2,14 @@
 
 This repository contains reusable GitHub Actions workflows for Adlucent repositories.
 
+## Quick Start
+
+Ready-to-use workflow files are available in the `examples/` directory:
+- `claude-pr-workflow.yml` - For Claude PR assistant
+- `security-scan-workflow.yml` - For security scanning
+
+Simply copy these files to your repository's `.github/workflows/` directory and you're ready to go!
+
 ## Available Workflows
 
 1. **Claude PR Handler** - AI-powered PR assistant
@@ -13,7 +21,9 @@ The Claude PR handler workflow enables Claude to respond to comments in issues a
 
 ### Usage
 
-In your repository, create `.github/workflows/claude.yml`:
+Copy `examples/claude-pr-workflow.yml` to your repository's `.github/workflows/` directory (you can rename it if desired).
+
+Or create the file manually with this content:
 
 ```yaml
 name: Claude PR Assistant
@@ -102,7 +112,9 @@ Comprehensive security scanning for Python, Node.js, and Docker applications usi
 
 ### Usage
 
-In your repository, create `.github/workflows/security.yml`:
+Copy `examples/security-scan-workflow.yml` to your repository's `.github/workflows/` directory (you can rename it if desired).
+
+Or create the file manually with this content:
 
 ```yaml
 name: Security Scan
