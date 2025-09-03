@@ -99,7 +99,7 @@ jobs:
       
       - name: Upload Python security reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: python-security-reports
           path: |
@@ -152,7 +152,7 @@ jobs:
       
       - name: Upload Node.js security reports
         if: steps.check-files.outputs.has_package_json == 'true' && always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: node-security-reports
           path: |
@@ -196,7 +196,7 @@ jobs:
       
       - name: Upload Docker security reports
         if: steps.check-files.outputs.has_dockerfile == 'true' && always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docker-security-reports
           path: |
@@ -235,7 +235,7 @@ jobs:
     name: Security Summary
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         
       - name: Generate Security Summary
         run: |
