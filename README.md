@@ -152,7 +152,7 @@ jobs:
 ### Reports
 
 The workflow generates the following reports (available as artifacts):
-- **Python**: `pip-audit-report.json`, `bandit-report.json`, `safety-report.json`
+- **Python**: `pip-audit-report.json`, `bandit-report.html`, `safety-report.json`
 - **Node.js**: `npm-audit-report.json`
 - **Docker**: `hadolint-report.json`, `trivy-results.sarif`
 

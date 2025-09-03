@@ -85,7 +85,7 @@ jobs:
         run: |
           pip install bandit[toml]
           echo "### 🔍 Static Security Analysis (Bandit)" >> $GITHUB_STEP_SUMMARY
-          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f html -o bandit-report.html || true
           bandit -r . -ll -i || true
       
       - name: Run Safety check
@@ -104,7 +104,7 @@ jobs:
           name: python-security-reports
           path: |
             pip-audit-report.json
-            bandit-report.json
+            bandit-report.html
             safety-report.json
           retention-days: 30
 
