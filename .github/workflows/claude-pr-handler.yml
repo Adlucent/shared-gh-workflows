@@ -65,6 +65,43 @@ jobs:
             Bash(npm run test)
             Bash(npm run lint)
             
+            # Python execution and package management
+            Bash(python)
+            Bash(python3)
+            Bash(pip install)
+            Bash(pip list)
+            Bash(pip freeze)
+            
+            # Python testing
+            Bash(pytest)
+            Bash(python -m pytest)
+            Bash(python -m unittest)
+            
+            # Python code quality
+            Bash(black)
+            Bash(ruff)
+            Bash(flake8)
+            Bash(mypy)
+            Bash(pylint)
+            
+            # Python environment
+            Bash(python -m venv)
+            Bash(source)
+            Bash(which python)
+            
+            # Django commands (if applicable)
+            Bash(python manage.py)
+            Bash(django-admin)
+            
+            # General build tools
+            Bash(make)
+            Bash(docker)
+            Bash(docker-compose)
+            
+            # API testing tools
+            Bash(curl)
+            Bash(wget)
+            
             # Basic diagnostics
             Bash(ls -la)
             Bash(cat)

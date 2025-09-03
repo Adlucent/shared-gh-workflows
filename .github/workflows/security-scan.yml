@@ -1,0 +1,254 @@
+name: Security and Dependency Scan
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.11'
+      node-version:
+        description: 'Node version to use'
+        required: false
+        type: string
+        default: '18'
+      enable-python-scan:
+        description: 'Enable Python security scanning'
+        required: false
+        type: boolean
+        default: true
+      enable-node-scan:
+        description: 'Enable Node.js security scanning'
+        required: false
+        type: boolean
+        default: true
+      enable-docker-scan:
+        description: 'Enable Docker security scanning'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  python-security:
+    if: inputs.enable-python-scan
+    runs-on: ubuntu-latest
+    name: Python Security Scan
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python-version }}
+      
+      - name: Check for requirements files
+        id: check-files
+        run: |
+          if [ -f "requirements.txt" ]; then
+            echo "has_requirements=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_requirements=false" >> $GITHUB_OUTPUT
+          fi
+          if [ -f "Pipfile" ]; then
+            echo "has_pipfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_pipfile=false" >> $GITHUB_OUTPUT
+          fi
+          if [ -f "poetry.lock" ]; then
+            echo "has_poetry=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_poetry=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Install pip-audit
+        run: |
+          pip install pip-audit
+      
+      - name: Run pip-audit on requirements.txt
+        if: steps.check-files.outputs.has_requirements == 'true'
+        run: |
+          echo "## 🔒 Python Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "### Checking requirements.txt for vulnerabilities..." >> $GITHUB_STEP_SUMMARY
+          pip-audit -r requirements.txt --desc || true
+          pip-audit -r requirements.txt --format json > pip-audit-report.json || true
+      
+      - name: Check for outdated Python packages
+        if: steps.check-files.outputs.has_requirements == 'true'
+        run: |
+          pip install pip-outdated
+          echo "### 📦 Outdated Python Packages" >> $GITHUB_STEP_SUMMARY
+          pip list --outdated --format=columns || true
+      
+      - name: Run Bandit security linter
+        if: always()
+        run: |
+          pip install bandit[toml]
+          echo "### 🔍 Static Security Analysis (Bandit)" >> $GITHUB_STEP_SUMMARY
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -ll -i || true
+      
+      - name: Run Safety check
+        if: steps.check-files.outputs.has_requirements == 'true'
+        continue-on-error: true
+        run: |
+          pip install safety
+          echo "### 🛡️ Safety Vulnerability Database Check" >> $GITHUB_STEP_SUMMARY
+          safety check -r requirements.txt --json --output safety-report.json || true
+          safety check -r requirements.txt || true
+      
+      - name: Upload Python security reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-security-reports
+          path: |
+            pip-audit-report.json
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
+
+  node-security:
+    if: inputs.enable-node-scan
+    runs-on: ubuntu-latest
+    name: Node.js Security Scan
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for Node.js files
+        id: check-files
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Set up Node.js
+        if: steps.check-files.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+      
+      - name: Run npm audit
+        if: steps.check-files.outputs.has_package_json == 'true'
+        run: |
+          echo "## 🔒 Node.js Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "### NPM Audit Results" >> $GITHUB_STEP_SUMMARY
+          npm audit --json > npm-audit-report.json || true
+          npm audit || true
+      
+      - name: Check for outdated packages
+        if: steps.check-files.outputs.has_package_json == 'true'
+        run: |
+          echo "### 📦 Outdated Node.js Packages" >> $GITHUB_STEP_SUMMARY
+          npm outdated || true
+      
+      - name: Run better-npm-audit
+        if: steps.check-files.outputs.has_package_json == 'true'
+        continue-on-error: true
+        run: |
+          npx better-npm-audit audit
+      
+      - name: Upload Node.js security reports
+        if: steps.check-files.outputs.has_package_json == 'true' && always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: node-security-reports
+          path: |
+            npm-audit-report.json
+          retention-days: 30
+
+  docker-security:
+    if: inputs.enable-docker-scan
+    runs-on: ubuntu-latest
+    name: Docker Security Scan
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for Dockerfile
+        id: check-files
+        run: |
+          if [ -f "Dockerfile" ]; then
+            echo "has_dockerfile=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_dockerfile=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Run Hadolint Dockerfile Linter
+        if: steps.check-files.outputs.has_dockerfile == 'true'
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          format: json
+          output-file: hadolint-report.json
+          no-fail: true
+      
+      - name: Run Trivy vulnerability scanner
+        if: steps.check-files.outputs.has_dockerfile == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+      
+      - name: Upload Docker security reports
+        if: steps.check-files.outputs.has_dockerfile == 'true' && always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-security-reports
+          path: |
+            hadolint-report.json
+            trivy-results.sarif
+          retention-days: 30
+
+  dependency-review:
+    runs-on: ubuntu-latest
+    name: License and Dependency Review
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check licenses
+        continue-on-error: true
+        run: |
+          echo "## 📜 License Check" >> $GITHUB_STEP_SUMMARY
+          echo "### Checking for restrictive licenses..." >> $GITHUB_STEP_SUMMARY
+          
+          # Check Python licenses if requirements.txt exists
+          if [ -f "requirements.txt" ]; then
+            pip install pip-licenses
+            echo "#### Python Packages Licenses:" >> $GITHUB_STEP_SUMMARY
+            pip-licenses --format=markdown >> $GITHUB_STEP_SUMMARY || true
+          fi
+          
+          # Check Node licenses if package.json exists  
+          if [ -f "package.json" ]; then
+            npx license-checker --summary >> $GITHUB_STEP_SUMMARY || true
+          fi
+
+  security-summary:
+    needs: [python-security, node-security, docker-security, dependency-review]
+    if: always()
+    runs-on: ubuntu-latest
+    name: Security Summary
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        
+      - name: Generate Security Summary
+        run: |
+          echo "## 🔐 Security Scan Complete" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Security scans have been completed. Check individual job results for details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Reports Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "- Python security reports (if applicable)" >> $GITHUB_STEP_SUMMARY
+          echo "- Node.js security reports (if applicable)" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker security reports (if applicable)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 💡 Recommendations:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review and update outdated packages regularly" >> $GITHUB_STEP_SUMMARY
+          echo "2. Address critical and high severity vulnerabilities immediately" >> $GITHUB_STEP_SUMMARY
+          echo "3. Consider using lock files (requirements.txt, package-lock.json) for reproducible builds" >> $GITHUB_STEP_SUMMARY
+          echo "4. Run these scans on every PR and scheduled weekly basis" >> $GITHUB_STEP_SUMMARY

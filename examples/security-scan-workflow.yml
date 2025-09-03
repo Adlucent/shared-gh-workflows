@@ -1,0 +1,27 @@
+name: Security Scan
+
+on:
+  # Run on PRs
+  pull_request:
+    branches: [main, master]
+  
+  # Run on pushes to main
+  push:
+    branches: [main, master]
+  
+  # Run weekly on Monday at 9 AM
+  schedule:
+    - cron: '0 9 * * 1'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  security:
+    uses: adlucent/shared-gh-workflows/.github/workflows/security-scan.yml@main
+    with:
+      python-version: '3.11'  # Optional: specify your Python version
+      node-version: '18'      # Optional: specify your Node version
+      enable-python-scan: true
+      enable-node-scan: true
+      enable-docker-scan: false  # Set to true if you have Dockerfiles
