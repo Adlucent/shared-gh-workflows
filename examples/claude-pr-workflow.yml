@@ -7,6 +7,6 @@ on:
 
 jobs:
   claude:
-    uses: adlucent/shared-gh-workflows/.github/workflows/claude-pr-handler.yml@main
+    uses: Adlucent/shared-gh-workflows/.github/workflows/claude-pr-handler.yml@main
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

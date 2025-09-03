@@ -18,7 +18,7 @@ on:
 
 jobs:
   security:
-    uses: adlucent/shared-gh-workflows/.github/workflows/security-scan.yml@main
+    uses: Adlucent/shared-gh-workflows/.github/workflows/security-scan.yml@main
     with:
       python-version: '3.11'  # Optional: specify your Python version
       node-version: '18'      # Optional: specify your Node version

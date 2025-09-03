@@ -35,7 +35,7 @@ on:
 
 jobs:
   claude:
-    uses: adlucent/shared-gh-workflows/.github/workflows/claude-pr-handler.yml@main
+    uses: Adlucent/shared-gh-workflows/.github/workflows/claude-pr-handler.yml@main
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -130,7 +130,7 @@ on:
 
 jobs:
   security:
-    uses: adlucent/shared-gh-workflows/.github/workflows/security-scan.yml@main
+    uses: Adlucent/shared-gh-workflows/.github/workflows/security-scan.yml@main
     with:
       python-version: '3.11'     # Optional: default is 3.11
       node-version: '18'         # Optional: default is 18
