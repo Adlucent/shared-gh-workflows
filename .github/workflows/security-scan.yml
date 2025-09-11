@@ -45,41 +45,82 @@ jobs:
       - name: Check for requirements files
         id: check-files
         run: |
-          # Check for root requirements.txt
-          if [ -f "requirements.txt" ]; then
+          req_files=""
+          
+          # First, check if Dockerfile exists and parse it for requirements
+          if [ -f "Dockerfile" ]; then
+            echo "Found Dockerfile, parsing for pip install commands..."
+            
+            # Extract all pip install -r commands from Dockerfile
+            # This captures the actual files being used in the container
+            dockerfile_reqs=$(grep -E "^\s*(RUN\s+)?pip\s+install\s+.*-r\s+" Dockerfile | \
+                             sed -E 's/.*-r\s+([^ ]+).*/\1/' | \
+                             grep -E "\.(txt|frozen\.txt)$" | \
+                             sort -u)
+            
+            # Check if we're in a multi-stage build and prioritize production
+            if grep -q "FROM.*AS production" Dockerfile; then
+              echo "Multi-stage Dockerfile detected, focusing on production stage..."
+              # Get requirements from base stage (if exists) and production stage
+              base_reqs=$(sed -n '/^FROM.*AS base/,/^FROM/p' Dockerfile | \
+                         grep -E "pip\s+install\s+.*-r\s+" | \
+                         sed -E 's/.*-r\s+([^ ]+).*/\1/' | \
+                         grep -E "\.(txt|frozen\.txt)$")
+              prod_reqs=$(sed -n '/^FROM.*AS production/,/^FROM/p' Dockerfile | \
+                         grep -E "pip\s+install\s+.*-r\s+" | \
+                         sed -E 's/.*-r\s+([^ ]+).*/\1/' | \
+                         grep -E "\.(txt|frozen\.txt)$")
+              
+              # Combine base and production requirements
+              dockerfile_reqs=$(echo -e "$base_reqs\n$prod_reqs" | sort -u | tr '\n' ' ')
+            fi
+            
+            # Verify the files actually exist
+            for req in $dockerfile_reqs; do
+              if [ -f "$req" ]; then
+                req_files="$req_files $req"
+                echo "Found requirements file from Dockerfile: $req"
+              fi
+            done
+          fi
+          
+          # Fallback: if no Dockerfile or no requirements found in it, use traditional detection
+          if [ -z "$req_files" ]; then
+            echo "No Dockerfile or no requirements found in Dockerfile, falling back to file detection..."
+            
+            # Check for root requirements.txt
+            if [ -f "requirements.txt" ]; then
+              req_files="requirements.txt"
+              echo "Found root requirements.txt"
+            # Check for requirements/ directory structure
+            elif [ -d "requirements" ]; then
+              # First look for frozen files (they have exact versions)
+              for pattern in "base.frozen.txt" "production.frozen.txt" "requirements.frozen.txt"; do
+                if [ -f "requirements/$pattern" ]; then
+                  req_files="$req_files requirements/$pattern"
+                  echo "Found requirements/$pattern"
+                fi
+              done
+              
+              # If no frozen files found, look for regular .txt files
+              if [ -z "$req_files" ]; then
+                for pattern in "base.txt" "production.txt" "requirements.txt"; do
+                  if [ -f "requirements/$pattern" ]; then
+                    req_files="$req_files requirements/$pattern"
+                    echo "Found requirements/$pattern"
+                  fi
+                done
+              fi
+            fi
+          fi
+          
+          # Trim leading/trailing spaces and set outputs
+          req_files=$(echo "$req_files" | xargs)
+          
+          if [ -n "$req_files" ]; then
             echo "has_requirements=true" >> $GITHUB_OUTPUT
-            echo "requirements_files=requirements.txt" >> $GITHUB_OUTPUT
-            echo "Found root requirements.txt"
-          # Check for requirements/ directory structure
-          elif [ -d "requirements" ]; then
-            req_files=""
-            if [ -f "requirements/base.txt" ]; then
-              req_files="requirements/base.txt"
-              echo "Found requirements/base.txt"
-            fi
-            if [ -f "requirements/production.txt" ]; then
-              if [ -n "$req_files" ]; then
-                req_files="$req_files requirements/production.txt"
-              else
-                req_files="requirements/production.txt"
-              fi
-              echo "Found requirements/production.txt"
-            fi
-            if [ -f "requirements/development.txt" ]; then
-              if [ -n "$req_files" ]; then
-                req_files="$req_files requirements/development.txt"
-              else
-                req_files="requirements/development.txt"
-              fi
-              echo "Found requirements/development.txt"
-            fi
-            if [ -n "$req_files" ]; then
-              echo "has_requirements=true" >> $GITHUB_OUTPUT
-              echo "requirements_files=$req_files" >> $GITHUB_OUTPUT
-            else
-              echo "has_requirements=false" >> $GITHUB_OUTPUT
-              echo "No requirements files found in requirements/ directory"
-            fi
+            echo "requirements_files=$req_files" >> $GITHUB_OUTPUT
+            echo "Will scan the following requirements files: $req_files"
           else
             echo "has_requirements=false" >> $GITHUB_OUTPUT
             echo "No requirements files found"

@@ -94,11 +94,18 @@ Comprehensive security scanning for Python, Node.js, and Docker applications usi
 ### Features
 
 #### Python Security
+- **Smart Requirements Detection**: Automatically parses Dockerfile to scan actual production dependencies
 - **pip-audit**: Scans for known vulnerabilities in Python packages
 - **Bandit**: Static security analysis for Python code
 - **Safety**: Checks dependencies against Safety vulnerability database
 - **Outdated packages**: Identifies packages that need updates
 - **License checking**: Reviews package licenses for compliance
+
+**Dockerfile-Aware Scanning**: The workflow intelligently detects which requirements files are actually used in production by parsing your Dockerfile. It automatically handles:
+- Multi-stage Docker builds (focuses on base + production stages)
+- Frozen requirements files (`*.frozen.txt`) for exact version scanning
+- Complex requirements structures (`requirements/` directory)
+- Falls back to traditional file detection if no Dockerfile exists
 
 #### Node.js Security  
 - **npm audit**: Built-in Node.js vulnerability scanning
