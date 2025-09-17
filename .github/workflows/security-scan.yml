@@ -197,31 +197,24 @@ jobs:
         if: steps.check-files.outputs.has_requirements == 'true'
         continue-on-error: true
         run: |
+          # Use latest safety with the new scan command
           pip install safety
           echo "### 🛡️ Safety Vulnerability Database Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Run safety on all requirements files and capture output
-          for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
-            echo "Safety checking $req_file..."
-            echo "=== Safety check results for $req_file ===" >> $GITHUB_STEP_SUMMARY
-            safety_output=$(safety check -r "$req_file" 2>&1 || true)
-            if echo "$safety_output" | grep -q "No known security vulnerabilities found"; then
-              echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
-            elif echo "$safety_output" | grep -q "vulnerability found"; then
-              echo "$safety_output" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "$safety_output" >> $GITHUB_STEP_SUMMARY
-            fi
-            echo "" >> $GITHUB_STEP_SUMMARY
-          done
+          # Generate HTML report and append to step summary
+          safety --disable-optional-telemetry scan --target . --output html > safety-report.html 2>/dev/null || true
 
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Check if vulnerabilities were found by examining the HTML
+          if grep -q "No vulnerabilities found" safety-report.html 2>/dev/null; then
+            echo "✅ No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+          else
+            # Append the HTML report directly to the step summary
+            cat safety-report.html >> $GITHUB_STEP_SUMMARY
+          fi
 
-          # Generate combined JSON report (try first requirements file for JSON output)
-          first_req_file=$(echo "${{ steps.check-files.outputs.requirements_files }}" | awk '{print $1}')
-          safety check -r "$first_req_file" --json --output safety-report.json || true
+          # Also generate JSON report for artifacts/parsing
+          safety --disable-optional-telemetry scan --target . --output json > safety-report.json 2>/dev/null || true
       
       - name: Upload Python security reports
         if: always()
