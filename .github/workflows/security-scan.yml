@@ -156,7 +156,7 @@ jobs:
           for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
             echo "Scanning $req_file..."
             echo "=== Results for $req_file ===" >> $GITHUB_STEP_SUMMARY
-            req_output=$(pip-audit -r "$req_file" --desc 2>&1 || true)
+            req_output=$(pip-audit -r "$req_file" --desc --no-color 2>&1 || true)
             if echo "$req_output" | grep -q "No known vulnerabilities found"; then
               echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
             else
@@ -183,7 +183,7 @@ jobs:
 
           echo "Checking for outdated packages..."
           echo '```' >> $GITHUB_STEP_SUMMARY
-          outdated_output=$(pip list --outdated --format=columns 2>&1)
+          outdated_output=$(pip list --outdated --format=columns 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
           if [ $? -eq 0 ] && [ -n "$outdated_output" ]; then
             echo "$outdated_output" >> $GITHUB_STEP_SUMMARY
           else
@@ -199,8 +199,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Run bandit and capture output
-          bandit_output=$(bandit -r . -ll -i 2>&1 || true)
+          # Run bandit and capture output (--no-color disables ANSI color codes)
+          bandit_output=$(bandit -r . -ll -i --no-color 2>&1 || true)
           if echo "$bandit_output" | grep -q "No issues identified"; then
             echo "✅ No security issues found by Bandit" >> $GITHUB_STEP_SUMMARY
           elif echo "$bandit_output" | grep -q "Total lines of code"; then
@@ -227,7 +227,7 @@ jobs:
           for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
             echo "Safety checking $req_file..."
             echo "=== Safety check results for $req_file ===" >> $GITHUB_STEP_SUMMARY
-            safety_output=$(safety check -r "$req_file" 2>&1 || true)
+            safety_output=$(safety check -r "$req_file" --no-colors 2>&1 || true)
             if echo "$safety_output" | grep -q "No known security vulnerabilities found"; then
               echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
             elif echo "$safety_output" | grep -q "vulnerability found"; then
