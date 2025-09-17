@@ -193,41 +193,37 @@ jobs:
           # Generate HTML report for artifacts
           bandit -r . -f html -o bandit-report.html || true
       
-      - name: Run Safety check
+      - name: Run OSV-Scanner (Google's Open Source Vulnerability Scanner)
         if: steps.check-files.outputs.has_requirements == 'true'
         continue-on-error: true
         run: |
-          # Install safety (pinning to v2 for simpler free usage without API key)
-          pip install 'safety<3.0.0'
-          echo "### 🛡️ Safety Vulnerability Database Check" >> $GITHUB_STEP_SUMMARY
+          echo "### 🛡️ OSV-Scanner Vulnerability Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Run safety check with simple output
-          echo "Scanning for known vulnerabilities..." >> $GITHUB_STEP_SUMMARY
+          # Install OSV-Scanner
+          pip install osv-scanner
+
+          # Run OSV-Scanner on all requirements files and capture output
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Run safety check on all requirements files
-          all_vulns=""
           for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
-            echo "Checking $req_file..." >> $GITHUB_STEP_SUMMARY
-            # Use --json for structured output, then parse it
-            safety check -r "$req_file" --json > temp_safety.json 2>/dev/null || true
+            echo "Scanning $req_file..." >> $GITHUB_STEP_SUMMARY
 
-            # Check if vulnerabilities exist
-            if [ -s temp_safety.json ] && grep -q '"vulnerabilities": \[\]' temp_safety.json; then
+            # Run osv-scanner with table format for readable output
+            osv_output=$(osv-scanner --lockfile="pip:$req_file" --format=table 2>&1 || true)
+
+            if echo "$osv_output" | grep -q "No vulnerabilities found"; then
               echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
             else
-              # Use --bare for simple text output without colors
-              safety check -r "$req_file" --bare >> $GITHUB_STEP_SUMMARY 2>&1 || true
+              echo "$osv_output" >> $GITHUB_STEP_SUMMARY
             fi
             echo "" >> $GITHUB_STEP_SUMMARY
           done
 
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Generate JSON report for the first requirements file
-          first_req_file=$(echo "${{ steps.check-files.outputs.requirements_files }}" | awk '{print $1}')
-          safety check -r "$first_req_file" --json > safety-report.json 2>/dev/null || true
+          # Generate JSON report for artifacts
+          osv-scanner --lockfile="pip:${{ steps.check-files.outputs.requirements_files }}" --format=json > osv-report.json 2>/dev/null || true
       
       - name: Upload Python security reports
         if: always()
