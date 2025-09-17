@@ -197,24 +197,37 @@ jobs:
         if: steps.check-files.outputs.has_requirements == 'true'
         continue-on-error: true
         run: |
-          # Use latest safety with the new scan command
-          pip install safety
+          # Install safety (pinning to v2 for simpler free usage without API key)
+          pip install 'safety<3.0.0'
           echo "### 🛡️ Safety Vulnerability Database Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Generate HTML report and append to step summary
-          safety --disable-optional-telemetry scan --target . --output html > safety-report.html 2>/dev/null || true
+          # Run safety check with simple output
+          echo "Scanning for known vulnerabilities..." >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Check if vulnerabilities were found by examining the HTML
-          if grep -q "No vulnerabilities found" safety-report.html 2>/dev/null; then
-            echo "✅ No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
-          else
-            # Append the HTML report directly to the step summary
-            cat safety-report.html >> $GITHUB_STEP_SUMMARY
-          fi
+          # Run safety check on all requirements files
+          all_vulns=""
+          for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
+            echo "Checking $req_file..." >> $GITHUB_STEP_SUMMARY
+            # Use --json for structured output, then parse it
+            safety check -r "$req_file" --json > temp_safety.json 2>/dev/null || true
 
-          # Also generate JSON report for artifacts/parsing
-          safety --disable-optional-telemetry scan --target . --output json > safety-report.json 2>/dev/null || true
+            # Check if vulnerabilities exist
+            if [ -s temp_safety.json ] && grep -q '"vulnerabilities": \[\]' temp_safety.json; then
+              echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
+            else
+              # Use --bare for simple text output without colors
+              safety check -r "$req_file" --bare >> $GITHUB_STEP_SUMMARY 2>&1 || true
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Generate JSON report for the first requirements file
+          first_req_file=$(echo "${{ steps.check-files.outputs.requirements_files }}" | awk '{print $1}')
+          safety check -r "$first_req_file" --json > safety-report.json 2>/dev/null || true
       
       - name: Upload Python security reports
         if: always()
