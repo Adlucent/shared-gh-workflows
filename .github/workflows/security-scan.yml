@@ -156,7 +156,7 @@ jobs:
           for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
             echo "Scanning $req_file..."
             echo "=== Results for $req_file ===" >> $GITHUB_STEP_SUMMARY
-            req_output=$(pip-audit -r "$req_file" --desc --no-color 2>&1 || true)
+            req_output=$(pip-audit -r "$req_file" --desc --progress-spinner off 2>&1 | sed 's/\x1b\[[0-9;]*m//g' || true)
             if echo "$req_output" | grep -q "No known vulnerabilities found"; then
               echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
             else
@@ -169,27 +169,6 @@ jobs:
           # Generate combined JSON report
           pip-audit -r ${{ steps.check-files.outputs.requirements_files }} --format json > pip-audit-report.json || true
       
-      - name: Check for outdated Python packages
-        if: steps.check-files.outputs.has_requirements == 'true'
-        run: |
-          echo "### 📦 Outdated Python Packages" >> $GITHUB_STEP_SUMMARY
-          echo "Installing packages from requirements files..."
-
-          # Install packages from all requirements files
-          for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
-            echo "Installing from $req_file..."
-            pip install -r "$req_file" || true
-          done
-
-          echo "Checking for outdated packages..."
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          outdated_output=$(pip list --outdated --format=columns 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
-          if [ $? -eq 0 ] && [ -n "$outdated_output" ]; then
-            echo "$outdated_output" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No outdated packages found or unable to check." >> $GITHUB_STEP_SUMMARY
-          fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
       
       - name: Run Bandit security linter
         if: always()
@@ -227,7 +206,7 @@ jobs:
           for req_file in ${{ steps.check-files.outputs.requirements_files }}; do
             echo "Safety checking $req_file..."
             echo "=== Safety check results for $req_file ===" >> $GITHUB_STEP_SUMMARY
-            safety_output=$(safety check -r "$req_file" --no-colors 2>&1 || true)
+            safety_output=$(safety check -r "$req_file" 2>&1 || true)
             if echo "$safety_output" | grep -q "No known security vulnerabilities found"; then
               echo "✅ No vulnerabilities found in $req_file" >> $GITHUB_STEP_SUMMARY
             elif echo "$safety_output" | grep -q "vulnerability found"; then
